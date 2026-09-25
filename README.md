@@ -1,3 +1,2 @@
-# my_android_app
+# RecoveryFit
 
-A new Flutter project.
