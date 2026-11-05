@@ -57,13 +57,15 @@ class _HealthAppPageState extends State<HealthAppPage> {
       }
 
       final now = DateTime.now();
+      // Початок поточної доби для підрахунку кроків
       final startOfDay = DateTime(now.year, now.month, now.day);
+      // Для сну беремо початок із вчорашнього вечора (наприклад, 18:00), щоб захопити нічну сесію
       final sleepWindowStart = startOfDay.subtract(const Duration(hours: 6));
 
-      // 1. Агреговані кроки за сьогодні
+      // 1. Агреговані кроки за сьогодні (00:00 -> зараз)
       final int? totalSteps = await _health.getTotalStepsInInterval(startOfDay, now);
 
-      // 2. Сирі дані для сну
+      // 2. Сирі дані для сну та аналізу джерел
       List<HealthDataPoint> healthData = await _health.getHealthDataFromTypes(
         types: _types,
         startTime: sleepWindowStart,
@@ -77,7 +79,7 @@ class _HealthAppPageState extends State<HealthAppPage> {
 
       final List<String> sleepSessionsDetails = [];
       final Set<String> sources = {};
-      final StringBuffer detailsLog = StringBuffer();
+      final StringBuffer detailsLog = StringBuffer(); // Оголошено змінну
 
       debugPrint("========================================");
       debugPrint("   ДАНІ ПРО ЗДОРОВ'Я ЗА СЬОГОДНІ");
@@ -90,36 +92,39 @@ class _HealthAppPageState extends State<HealthAppPage> {
         final String sourceId = point.sourceId;
         sources.add("$source ($sourceId)");
 
-        final duration = point.dateTo.difference(point.dateFrom);
+        final logLine = "[${point.type.name}] Джерело: $source ($sourceId) | Значення: ${point.value}";
+        debugPrint(logLine);
 
-        // Обробка типів сну у залишку циклу
-        switch (point.type) {
-          case HealthDataType.SLEEP_DEEP:
-            deepSleepDuration += duration;
-            break;
+        if (point.type == HealthDataType.SLEEP_SESSION) {
+          // Враховуємо сесію, якщо вона завершилася вже сьогодні
+          if (point.dateTo.isAfter(startOfDay)) {
+            final sessionDuration = point.dateTo.difference(point.dateFrom);
+            totalSleepDuration += sessionDuration;
+            // Підраховуємо конкретні фази сну
+            switch (point.type) {
+              case HealthDataType.SLEEP_DEEP:
+                 deepSleepDuration += duration;
+                 break;
+               HealthDataType.SLEEP_REM:
+                 remSleepDuration += duration;
+                 break;
+              case HealthDataType.SLEEP_LIGHT:
+                 lightSleepDuration += duration;
+                 break;
+              case HealthDataType.SLEEP_SESSION:
+                if (point.dateTo.isAfter(startOfDay)) {
+                  totalSleepDuration += duration;
+                  }
+                  final sessionInfo =
+                   "• ${_formatDuration(sessionDuration)} (з ${_formatTime(point.dateFrom)} до ${_formatTime(point.dateTo)}) [Джерело: $source]";
 
-          case HealthDataType.SLEEP_REM:
-            remSleepDuration += duration;
-            break;
-
-          case HealthDataType.SLEEP_LIGHT:
-            lightSleepDuration += duration;
-            break;
-
-          case HealthDataType.SLEEP_SESSION:
-            if (point.dateTo.isAfter(startOfDay)) {
-              totalSleepDuration += duration;
-
-              final sessionInfo =
-                  "• ${_formatDuration(duration)} (з ${_formatTime(point.dateFrom)} до ${_formatTime(point.dateTo)}) [Джерело: $source]";
-
-              sleepSessionsDetails.add(sessionInfo);
-              debugPrint("[Сон] $sessionInfo | ID: $sourceId");
+            sleepSessionsDetails.add(sessionInfo);
+            debugPrint("[Сон] $sessionInfo | ID: $sourceId");
             }
-            break;
-
+          }
+          break;
           default:
-            break;
+          break;
         }
 
         if (detailsLog.length < 500) {
@@ -142,9 +147,9 @@ class _HealthAppPageState extends State<HealthAppPage> {
         _log = "✅ Дані за сьогодні:\n\n"
             "🏃 Кроки (агреговано): ${totalSteps ?? 0}\n\n"
             "🛌 Загальний сон: ${_formatDuration(totalSleepDuration)}\n"
-            "   • Глибокий сон: ${_formatDuration(deepSleepDuration)}\n"
-            "   • REM: ${_formatDuration(remSleepDuration)}\n"
-            "   • Швидкий сон: ${_formatDuration(lightSleepDuration)}\n\n"
+            "  • Глибокий сон: ${_formatDuration(deepSleepDuration)}\n"
+            "  • Швидкий сон (REM): ${_formatDuration(remSleepDuration)}\n"
+            "  • Легкий сон: ${_formatDuration(lightSleepDuration)}\n\n"
             "Сесії сну (${sleepSessionsDetails.length}):\n"
             "$sleepReport\n\n"
             "📱 Джерела даних:\n"
