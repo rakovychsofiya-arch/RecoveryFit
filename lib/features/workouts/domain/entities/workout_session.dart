@@ -7,24 +7,31 @@ sealed class WorkoutSession {
   final String title;
   final DateTime date;
   final Duration? restTimerDuration;
+  final int? caloriesBurned;
+  final int? avgHeartRate;
 
   const WorkoutSession({
     required this.id,
     required this.title,
     required this.date,
     this.restTimerDuration,
+    this.caloriesBurned,
+    this.avgHeartRate,
   });
 }
 
 // 1. Силове тренування
 class StrengthWorkoutSession extends WorkoutSession {
   final List<WorkoutExercise> exercises;
+  
 
   const StrengthWorkoutSession({
     required super.id,
     required super.title,
     required super.date,
     super.restTimerDuration,
+    super.caloriesBurned,
+    super.avgHeartRate,
     required this.exercises,
   });
 }
@@ -33,7 +40,6 @@ class StrengthWorkoutSession extends WorkoutSession {
 class CardioWorkoutSession extends WorkoutSession {
   final double distanceInKm;
   final int durationMinutes;
-  final int? avgHeartRate;
 
   const CardioWorkoutSession({
     required super.id,
@@ -41,14 +47,16 @@ class CardioWorkoutSession extends WorkoutSession {
     required super.date,
     required this.distanceInKm,
     required this.durationMinutes,
-    this.avgHeartRate,
+    super.restTimerDuration,
+    super.caloriesBurned,
+    super.avgHeartRate,
   });
 }
 
 // 3. Розтяжка
 class StretchingWorkoutSession extends WorkoutSession {
   final int durationMinutes;
-  final String targetMuscleGroup;
+  final int durationMinutes;
 
   const StretchingWorkoutSession({
     required super.id,
@@ -56,5 +64,8 @@ class StretchingWorkoutSession extends WorkoutSession {
     required super.date,
     required this.durationMinutes,
     required this.targetMuscleGroup,
+    super.restTimerDuration,
+    super.caloriesBurned,
+    super.avgHeartRate,
   });
 }
