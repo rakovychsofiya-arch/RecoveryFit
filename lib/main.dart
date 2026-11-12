@@ -31,7 +31,7 @@ class _HealthAppPageState extends State<HealthAppPage> {
   String _formatDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
-    return "${hours} год ${minutes} хв";
+    return "$hours год $minutes хв";
   }
 
   String _formatTime(DateTime date) {
@@ -79,7 +79,7 @@ class _HealthAppPageState extends State<HealthAppPage> {
 
       final List<String> sleepSessionsDetails = [];
       final Set<String> sources = {};
-      final StringBuffer detailsLog = StringBuffer(); // Оголошено змінну
+      final StringBuffer detailsLog = StringBuffer();
 
       debugPrint("========================================");
       debugPrint("   ДАНІ ПРО ЗДОРОВ'Я ЗА СЬОГОДНІ");
@@ -95,36 +95,29 @@ class _HealthAppPageState extends State<HealthAppPage> {
         final logLine = "[${point.type.name}] Джерело: $source ($sourceId) | Значення: ${point.value}";
         debugPrint(logLine);
 
-        if (point.type == HealthDataType.SLEEP_SESSION) {
-          // Враховуємо сесію, якщо вона завершилася вже сьогодні
-          if (point.dateTo.isAfter(startOfDay)) {
-            final sessionDuration = point.dateTo.difference(point.dateFrom);
-            totalSleepDuration += sessionDuration;
-            // Підраховуємо конкретні фази сну
-            switch (point.type) {
-              case HealthDataType.SLEEP_DEEP:
-                 deepSleepDuration += duration;
-                 break;
-               HealthDataType.SLEEP_REM:
-                 remSleepDuration += duration;
-                 break;
-              case HealthDataType.SLEEP_LIGHT:
-                 lightSleepDuration += duration;
-                 break;
-              case HealthDataType.SLEEP_SESSION:
-                if (point.dateTo.isAfter(startOfDay)) {
-                  totalSleepDuration += duration;
-                  }
-                  final sessionInfo =
-                   "• ${_formatDuration(sessionDuration)} (з ${_formatTime(point.dateFrom)} до ${_formatTime(point.dateTo)}) [Джерело: $source]";
+        final duration = point.dateTo.difference(point.dateFrom);
 
-            sleepSessionsDetails.add(sessionInfo);
-            debugPrint("[Сон] $sessionInfo | ID: $sourceId");
+        switch (point.type) {
+          case HealthDataType.SLEEP_DEEP:
+            deepSleepDuration += duration;
+            break;
+          case HealthDataType.SLEEP_REM:
+            remSleepDuration += duration;
+            break;
+          case HealthDataType.SLEEP_LIGHT:
+            lightSleepDuration += duration;
+            break;
+          case HealthDataType.SLEEP_SESSION:
+            if (point.dateTo.isAfter(startOfDay)) {
+              totalSleepDuration += duration;
+              final sessionInfo =
+                  "• ${_formatDuration(duration)} (з ${_formatTime(point.dateFrom)} до ${_formatTime(point.dateTo)}) [Джерело: $source]";
+              sleepSessionsDetails.add(sessionInfo);
+              debugPrint("[Сон] $sessionInfo | ID: $sourceId");
             }
-          }
-          break;
+            break;
           default:
-          break;
+            break;
         }
 
         if (detailsLog.length < 500) {
