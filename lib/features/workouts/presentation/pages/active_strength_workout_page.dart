@@ -11,6 +11,7 @@ import '../../domain/usecases/get_exercises_usecase.dart';
 import '../cubit/active_workout_cubit.dart';
 import '../cubit/active_workout_state.dart';
 import '../cubit/workout_history_cubit.dart';
+import '../cubit/workout_history_state.dart';
 import '../widgets/exercise_picker_dialog.dart';
 
 class ActiveStrengthWorkoutPage extends StatelessWidget {
@@ -141,13 +142,18 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
           children: [
             // Заголовок вправи та вибір обладнання
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Text(
                     ex.name,
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
+                ),
+                // Око: перегляд минулих ваг та історії цієї вправи
+                IconButton(
+                  icon: const Icon(Icons.visibility_outlined, size: 20, color: AppTheme.primaryColor),
+                  tooltip: 'Минулі ваги цієї вправи',
+                  onPressed: () => _showPastExercisePerformance(context, ex.name),
                 ),
                 // Вибір обладнання (варіації)
                 DropdownButton<EquipmentType>(
@@ -175,7 +181,27 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
                 ),
               ],
             ),
-            const Divider(height: 20),
+            // Поле нотатки до вправи (опційно: як пройшла вправа, важко/легко)
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
+              child: TextFormField(
+                initialValue: ex.notes ?? '',
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  hintText: 'Нотатка до вправи (наприклад: було важко на 3 сеті)...',
+                  hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  prefixIcon: const Icon(Icons.edit_note, size: 18, color: AppTheme.primaryColor),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade200)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade200)),
+                ),
+                style: const TextStyle(fontSize: 12),
+                onChanged: (val) => cubit.updateExerciseNotes(exIndex, val),
+              ),
+            ),
+            const Divider(height: 14),
 
             // Заголовки колонок таблиці підходів
             Row(
@@ -192,7 +218,7 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
                 ),
                 const Expanded(flex: 3, child: Center(child: Text('Повтор.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
                 const Expanded(flex: 3, child: Center(child: Text('Тип', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
-                const SizedBox(width: 82, child: Center(child: Text('Статус', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
+                const SizedBox(width: 82, child: Center(child: Text('Таймер', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
               ],
             ),
             const SizedBox(height: 8),
@@ -443,6 +469,163 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
       onPressed: () => cubit.startRestTimer(seconds),
+    );
+  }
+
+  void _showPastExercisePerformance(BuildContext context, String exerciseName) {
+    final historyState = context.read<WorkoutHistoryCubit>().state;
+    final List<Map<String, dynamic>> pastLogs = [];
+
+    if (historyState is WorkoutHistoryLoaded) {
+      for (var session in historyState.sessions) {
+        if (session is StrengthWorkoutSession) {
+          for (var exercise in session.exercises) {
+            if (exercise.name.toLowerCase() == exerciseName.toLowerCase()) {
+              pastLogs.add({
+                'date': session.date,
+                'sessionTitle': session.title,
+                'equipment': exercise.equipment,
+                'notes': exercise.notes,
+                'sets': exercise.sets,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.65,
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.history, color: AppTheme.primaryColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          exerciseName,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const Text(
+              'Історія попередніх тренувань та робочих ваг',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const Divider(height: 20),
+            Expanded(
+              child: pastLogs.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.info_outline, size: 48, color: Colors.grey.shade400),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Попередніх записів не знайдено',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Це ваше перше тренування з цією вправою. Завершіть його, і робочі ваги збережуться!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: pastLogs.length,
+                      itemBuilder: (context, idx) {
+                        final log = pastLogs[idx];
+                        final date = log['date'] as DateTime;
+                        final sets = log['sets'] as List<WorkoutSet>;
+                        final notes = log['notes'] as String?;
+                        final eq = log['equipment'] as EquipmentType;
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          color: Colors.grey.shade50,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      DateFormatter.formatDate(date),
+                                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
+                                    ),
+                                    Text(
+                                      _equipmentLabel(eq.name),
+                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                    ),
+                                  ],
+                                ),
+                                if (notes != null && notes.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '💬 "$notes"',
+                                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.blueGrey.shade700),
+                                  ),
+                                ],
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: sets.map((st) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.grey.shade300),
+                                      ),
+                                      child: Text(
+                                        eq == EquipmentType.bodyweight
+                                            ? '#${st.setNumber}: ${st.reps} повт.'
+                                            : '#${st.setNumber}: ${st.weight.toStringAsFixed(1).replaceAll('.0', '')} кг × ${st.reps}',
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

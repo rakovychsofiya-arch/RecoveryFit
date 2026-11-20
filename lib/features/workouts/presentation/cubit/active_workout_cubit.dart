@@ -162,6 +162,22 @@ class ActiveWorkoutCubit extends Cubit<ActiveWorkoutState> {
     emit(state.copyWith(session: session.copyWith(exercises: updatedExercises)));
   }
 
+  // Оновити нотатку до конкретної вправи (суб'єктивні відчуття, вага, рекомендація)
+  void updateExerciseNotes(int exerciseIndex, String notes) {
+    final state = this.state;
+    if (state is! ActiveWorkoutInProgress) return;
+    if (state.session is! StrengthWorkoutSession) return;
+
+    final session = state.session as StrengthWorkoutSession;
+    if (exerciseIndex >= session.exercises.length) return;
+
+    final updatedExercises = List<WorkoutExercise>.from(session.exercises);
+    final target = updatedExercises[exerciseIndex];
+    updatedExercises[exerciseIndex] = target.copyWith(notes: notes);
+
+    emit(state.copyWith(session: session.copyWith(exercises: updatedExercises)));
+  }
+
   // Додати підхід (сет)
   void addSet(int exerciseIndex) {
     final state = this.state;
@@ -300,7 +316,17 @@ class ActiveWorkoutCubit extends Cubit<ActiveWorkoutState> {
     if (state is! ActiveWorkoutInProgress) return;
 
     try {
-      await saveWorkoutUseCase(state.session);
+      var sessionToSave = state.session;
+      if (sessionToSave is StrengthWorkoutSession) {
+        // Усі підходи, які користувач заніс у тренування, автоматично вважаються виконаними
+        final completedExercises = sessionToSave.exercises.map((ex) {
+          final completedSets = ex.sets.map((st) => st.copyWith(isCompleted: true)).toList();
+          return ex.copyWith(sets: completedSets);
+        }).toList();
+        sessionToSave = sessionToSave.copyWith(exercises: completedExercises);
+      }
+
+      await saveWorkoutUseCase(sessionToSave);
       _cancelTimer();
       emit(ActiveWorkoutSaved());
     } catch (e) {
