@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/database/database_helper.dart';
+import 'core/services/notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/health/data/datasources/health_remote_data_source.dart';
 import 'features/health/data/repositories/health_repository_impl.dart';
@@ -27,7 +28,10 @@ void main() async {
   final dbHelper = DatabaseHelper.instance;
   await dbHelper.database; // Тригерить створення таблиць та початковий seed вправ
 
-  // 2. Data Sources
+  // 2. Ініціалізація локальних сповіщень (для таймера та годинника)
+  await NotificationService.instance.init();
+
+  // 3. Data Sources
   final workoutLocalDataSource = WorkoutLocalDataSourceImpl(dbHelper: dbHelper);
   final healthRemoteDataSource = HealthRemoteDataSourceImpl();
 
@@ -104,6 +108,7 @@ class FitnessApp extends StatelessWidget {
           create: (_) => WorkoutHistoryCubit(
             getWorkoutsUseCase: getWorkoutsUseCase,
             deleteWorkoutUseCase: deleteWorkoutUseCase,
+            saveWorkoutUseCase: saveWorkoutUseCase,
           )..loadHistory(),
         ),
         BlocProvider(

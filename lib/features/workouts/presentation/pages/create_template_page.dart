@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 import '../../domain/entities/exercise.dart';
+import '../../domain/entities/workout_enums.dart';
 import '../../domain/entities/workout_template.dart';
 import '../../domain/usecases/get_exercises_usecase.dart';
 import '../cubit/workout_templates_cubit.dart';
@@ -236,23 +237,41 @@ class _CreateTemplatePageState extends State<CreateTemplatePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Вага (кг)', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                      const SizedBox(height: 4),
-                      TextFormField(
-                        initialValue: tEx.defaultWeight.toStringAsFixed(1).replaceAll('.0', ''),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        textAlign: TextAlign.center,
-                        decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onChanged: (val) {
-                          final parsed = double.tryParse(val);
-                          if (parsed != null) {
-                            _exercises[index] = tEx.copyWith(defaultWeight: parsed);
-                          }
-                        },
+                      Text(
+                        tEx.equipment == EquipmentType.bodyweight ? 'Вага' : 'Вага (кг)',
+                        style: const TextStyle(fontSize: 12, color: Colors.black54),
                       ),
+                      const SizedBox(height: 4),
+                      if (tEx.equipment == EquipmentType.bodyweight)
+                        Container(
+                          height: 48,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: const Text(
+                            'Власна',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54),
+                          ),
+                        )
+                      else
+                        TextFormField(
+                          initialValue: tEx.defaultWeight.toStringAsFixed(1).replaceAll('.0', ''),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          textAlign: TextAlign.center,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onChanged: (val) {
+                            final parsed = double.tryParse(val);
+                            if (parsed != null) {
+                              _exercises[index] = tEx.copyWith(defaultWeight: parsed);
+                            }
+                          },
+                        ),
                     ],
                   ),
                 ),

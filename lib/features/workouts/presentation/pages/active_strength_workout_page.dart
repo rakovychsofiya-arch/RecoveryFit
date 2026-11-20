@@ -4,7 +4,9 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/workout_enums.dart';
+import '../../domain/entities/workout_exercise.dart';
 import '../../domain/entities/workout_session.dart';
+import '../../domain/entities/workout_set.dart';
 import '../../domain/usecases/get_exercises_usecase.dart';
 import '../cubit/active_workout_cubit.dart';
 import '../cubit/active_workout_state.dart';
@@ -48,61 +50,73 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
         final session = state.session as StrengthWorkoutSession;
         final cubit = context.read<ActiveWorkoutCubit>();
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(session.title),
-            actions: [
-              TextButton.icon(
-                onPressed: () {
-                  _showFinishDialog(context, cubit);
-                },
-                icon: const Icon(Icons.check, color: Colors.white),
-                label: const Text(
-                  'Завершити',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            _showExitConfirmationDialog(context);
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Вийти з тренування',
+                onPressed: () => _showExitConfirmationDialog(context),
+              ),
+              title: Text(session.title),
+              actions: [
+                TextButton.icon(
+                  onPressed: () {
+                    _showFinishDialog(context, cubit);
+                  },
+                  icon: const Icon(Icons.check, color: Colors.white),
+                  label: const Text(
+                    'Завершити',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          bottomNavigationBar: _buildRestTimerBar(context, state, cubit),
-          body: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Інфо про дату
-              Text(
-                'Дата: ${DateFormatter.formatDate(session.date)} • ${session.exercises.length} вправ',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-
-              // Список вправ
-              for (int i = 0; i < session.exercises.length; i++)
-                _buildExerciseCard(context, session, i, cubit),
-
-              const SizedBox(height: 16),
-              // Кнопка додати вправу
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final selected = await showModalBottomSheet<Exercise>(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => ExercisePickerDialog(getExercisesUseCase: getExercisesUseCase),
-                  );
-                  if (selected != null) {
-                    cubit.addExercise(selected);
-                  }
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('+ Додати вправу з каталогу'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ],
+            ),
+            bottomNavigationBar: _buildRestTimerBar(context, state, cubit),
+            body: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // Інфо про дату
+                Text(
+                  'Дата: ${DateFormatter.formatDate(session.date)} • ${session.exercises.length} вправ',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                 ),
-              ),
-              const SizedBox(height: 60), // Відступ для нижньої панелі таймера
-            ],
+                const SizedBox(height: 12),
+
+                // Список вправ
+                for (int i = 0; i < session.exercises.length; i++)
+                  _buildExerciseCard(context, session, i, cubit),
+
+                const SizedBox(height: 16),
+                // Кнопка додати вправу
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final selected = await showModalBottomSheet<Exercise>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => ExercisePickerDialog(getExercisesUseCase: getExercisesUseCase),
+                    );
+                    if (selected != null) {
+                      cubit.addExercise(selected);
+                    }
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('+ Додати вправу з каталогу'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 60), // Відступ для нижньої панелі таймера
+              ],
+            ),
           ),
         );
       },
@@ -116,6 +130,7 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
     ActiveWorkoutCubit cubit,
   ) {
     final ex = session.exercises[exIndex];
+    final bool isBodyweight = ex.equipment == EquipmentType.bodyweight;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -151,25 +166,40 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
                     }
                   },
                 ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                  tooltip: 'Видалити вправу',
+                  onPressed: () {
+                    cubit.removeExercise(exIndex);
+                  },
+                ),
               ],
             ),
             const Divider(height: 20),
 
             // Заголовки колонок таблиці підходів
-            const Row(
+            Row(
               children: [
-                SizedBox(width: 32, child: Text('Сет', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                Expanded(flex: 3, child: Center(child: Text('Вага (кг)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
-                Expanded(flex: 3, child: Center(child: Text('Повтор.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
-                Expanded(flex: 3, child: Center(child: Text('Тип', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
-                SizedBox(width: 48, child: Center(child: Text('✓', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)))),
+                const SizedBox(width: 28, child: Text('Сет', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                Expanded(
+                  flex: 3,
+                  child: Center(
+                    child: Text(
+                      isBodyweight ? 'Вага' : 'Вага (кг)',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+                ),
+                const Expanded(flex: 3, child: Center(child: Text('Повтор.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
+                const Expanded(flex: 3, child: Center(child: Text('Тип', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
+                const SizedBox(width: 82, child: Center(child: Text('Статус', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
               ],
             ),
             const SizedBox(height: 8),
 
             // Рядки підходів
             for (int sIndex = 0; sIndex < ex.sets.length; sIndex++)
-              _buildSetRow(context, exIndex, sIndex, ex.sets[sIndex], cubit),
+              _buildSetRow(context, ex, exIndex, sIndex, ex.sets[sIndex], cubit),
 
             const SizedBox(height: 8),
             // Кнопка додати підхід
@@ -186,45 +216,68 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
 
   Widget _buildSetRow(
     BuildContext context,
+    WorkoutExercise ex,
     int exIndex,
     int sIndex,
-    dynamic workoutSet,
+    WorkoutSet workoutSet,
     ActiveWorkoutCubit cubit,
   ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    final bool isBodyweight = ex.equipment == EquipmentType.bodyweight;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(
+        color: workoutSet.isCompleted ? const Color(0xFFF0FDF4) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
         children: [
           // Номер сету
           SizedBox(
-            width: 32,
+            width: 28,
             child: Text(
               '#${workoutSet.setNumber}',
               style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700),
             ),
           ),
-          // Вага (кг)
+          // Вага (кг) або "Власна вага"
           Expanded(
             flex: 3,
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: TextFormField(
-                initialValue: workoutSet.weight.toStringAsFixed(1).replaceAll('.0', ''),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  contentPadding: EdgeInsets.zero,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onChanged: (val) {
-                  final parsed = double.tryParse(val);
-                  if (parsed != null) {
-                    cubit.updateSet(exIndex, sIndex, weight: parsed);
-                  }
-                },
-              ),
-            ),
+            child: isBodyweight
+                ? Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: const Text(
+                      'Власна',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black54),
+                    ),
+                  )
+                : Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: TextFormField(
+                      initialValue: workoutSet.weight.toStringAsFixed(1).replaceAll('.0', ''),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        contentPadding: EdgeInsets.zero,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val);
+                        if (parsed != null) {
+                          cubit.updateSet(exIndex, sIndex, weight: parsed);
+                        }
+                      },
+                    ),
+                  ),
           ),
           // Повторення
           Expanded(
@@ -278,7 +331,7 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
                 child: Text(
                   workoutSet.category == SetCategory.warmup ? 'Розминка' : 'Робочий',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.bold,
                     color: workoutSet.category == SetCategory.warmup
                         ? Colors.orange.shade800
@@ -288,16 +341,44 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
               ),
             ),
           ),
-          // Чекбокс виконання
+          // Кнопка Статусу (Відпочинок / Готово)
           SizedBox(
-            width: 48,
-            child: Checkbox(
-              value: workoutSet.isCompleted,
-              activeColor: AppTheme.primaryColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-              onChanged: (val) {
-                cubit.updateSet(exIndex, sIndex, isCompleted: val ?? false);
+            width: 82,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () {
+                cubit.updateSet(exIndex, sIndex, isCompleted: !workoutSet.isCompleted);
               },
+              child: Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: workoutSet.isCompleted ? AppTheme.primaryColor : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: workoutSet.isCompleted ? AppTheme.primaryColor : Colors.grey.shade300,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      workoutSet.isCompleted ? Icons.check_circle : Icons.timer_outlined,
+                      size: 15,
+                      color: workoutSet.isCompleted ? Colors.white : Colors.black87,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      workoutSet.isCompleted ? 'Готово' : 'Відпочити',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: workoutSet.isCompleted ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -382,6 +463,30 @@ class ActiveStrengthWorkoutPage extends StatelessWidget {
               cubit.saveWorkout();
             },
             child: const Text('Зберегти'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExitConfirmationDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Перервати тренування?'),
+        content: const Text('Усі поточні виконані підходи не будуть збережені. Ви дійсно бажаєте вийти?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Продовжити тренування'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              Navigator.pop(ctx); // Закрити діалог
+              Navigator.pop(context); // Вийти з екрану тренування
+            },
+            child: const Text('Вийти без збереження'),
           ),
         ],
       ),

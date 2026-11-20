@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/workout_enums.dart';
 import '../../domain/entities/workout_exercise.dart';
@@ -14,6 +15,7 @@ class ActiveWorkoutCubit extends Cubit<ActiveWorkoutState> {
   final SaveWorkoutUseCase saveWorkoutUseCase;
   final Uuid _uuid = const Uuid();
   Timer? _restTimer;
+  DateTime? _timerEndTime;
 
   ActiveWorkoutCubit({required this.saveWorkoutUseCase})
       : super(ActiveWorkoutInitial());
@@ -131,6 +133,19 @@ class ActiveWorkoutCubit extends Cubit<ActiveWorkoutState> {
     emit(state.copyWith(session: session.copyWith(exercises: updatedExercises)));
   }
 
+  // Видалити вправу з силового тренування (якщо додали помилково)
+  void removeExercise(int exerciseIndex) {
+    final state = this.state;
+    if (state is! ActiveWorkoutInProgress) return;
+    if (state.session is! StrengthWorkoutSession) return;
+
+    final session = state.session as StrengthWorkoutSession;
+    if (exerciseIndex >= session.exercises.length) return;
+
+    final updatedExercises = List<WorkoutExercise>.from(session.exercises)..removeAt(exerciseIndex);
+    emit(state.copyWith(session: session.copyWith(exercises: updatedExercises)));
+  }
+
   // Змінити обладнання для вправи (гантелі, штанга, тренажер, власна вага)
   void updateExerciseEquipment(int exerciseIndex, EquipmentType equipment) {
     final state = this.state;
@@ -239,24 +254,26 @@ class ActiveWorkoutCubit extends Cubit<ActiveWorkoutState> {
     }
   }
 
-  // Опційний таймер відпочинку
+  // Опційний таймер відпочинку (працює за реальним годинником)
   void startRestTimer(int seconds) {
     _cancelTimer();
     final state = this.state;
     if (state is! ActiveWorkoutInProgress) return;
 
+    _timerEndTime = DateTime.now().add(Duration(seconds: seconds));
     emit(state.copyWith(timerSecondsRemaining: seconds, isTimerRunning: true));
 
     _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final current = this.state;
-      if (current is! ActiveWorkoutInProgress) {
+      if (current is! ActiveWorkoutInProgress || _timerEndTime == null) {
         timer.cancel();
         return;
       }
-      final remaining = current.timerSecondsRemaining - 1;
+      final remaining = _timerEndTime!.difference(DateTime.now()).inSeconds;
       if (remaining <= 0) {
         _cancelTimer();
         emit(current.copyWith(timerSecondsRemaining: 0, isTimerRunning: false));
+        NotificationService.instance.showRestTimerFinishedNotification();
       } else {
         emit(current.copyWith(timerSecondsRemaining: remaining, isTimerRunning: true));
       }
@@ -274,6 +291,7 @@ class ActiveWorkoutCubit extends Cubit<ActiveWorkoutState> {
   void _cancelTimer() {
     _restTimer?.cancel();
     _restTimer = null;
+    _timerEndTime = null;
   }
 
   // Завершити та зберегти тренування

@@ -313,34 +313,49 @@ class WorkoutLocalDataSourceImpl implements WorkoutLocalDataSource {
 
       // Якщо це силове тренування, зберігаємо вправи та підходи
       if (session is StrengthWorkoutSession) {
+        // Спочатку очищаємо старі підходи та вправи для цієї сесії
+        await txn.rawDelete('''
+          DELETE FROM exercise_sets 
+          WHERE session_exercise_id IN (
+            SELECT id FROM session_exercises WHERE session_id = ?
+          )
+        ''', [session.id]);
         await txn.delete('session_exercises', where: 'session_id = ?', whereArgs: [session.id]);
 
         for (int i = 0; i < session.exercises.length; i++) {
           final ex = session.exercises[i];
           final exId = ex.id.isNotEmpty ? ex.id : uuid.v4();
 
-          await txn.insert('session_exercises', {
-            'id': exId,
-            'session_id': session.id,
-            'exercise_id': ex.exerciseId,
-            'name': ex.name,
-            'equipment': ex.equipment.name,
-            'order_index': i,
-            'notes': ex.notes,
-          });
+          await txn.insert(
+            'session_exercises',
+            {
+              'id': exId,
+              'session_id': session.id,
+              'exercise_id': ex.exerciseId,
+              'name': ex.name,
+              'equipment': ex.equipment.name,
+              'order_index': i,
+              'notes': ex.notes,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
 
           for (var st in ex.sets) {
             final setId = st.id != null && st.id!.isNotEmpty ? st.id! : uuid.v4();
-            await txn.insert('exercise_sets', {
-              'id': setId,
-              'session_exercise_id': exId,
-              'set_number': st.setNumber,
-              'weight': st.weight,
-              'reps': st.reps,
-              'category': st.category.name,
-              'rest_time_seconds': st.restTimeSeconds,
-              'is_completed': st.isCompleted ? 1 : 0,
-            });
+            await txn.insert(
+              'exercise_sets',
+              {
+                'id': setId,
+                'session_exercise_id': exId,
+                'set_number': st.setNumber,
+                'weight': st.weight,
+                'reps': st.reps,
+                'category': st.category.name,
+                'rest_time_seconds': st.restTimeSeconds,
+                'is_completed': st.isCompleted ? 1 : 0,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
           }
         }
       }

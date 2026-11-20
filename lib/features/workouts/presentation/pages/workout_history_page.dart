@@ -146,6 +146,13 @@ class WorkoutHistoryPage extends StatelessWidget {
                 'Вправ: ${session.exercises.length} • Загалом сетів: ${session.exercises.fold<int>(0, (sum, e) => sum + e.sets.length)}',
                 style: const TextStyle(fontSize: 13, color: Colors.black87),
               ),
+              if (session.notes != null && session.notes!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Нотатки: ${session.notes}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                ),
+              ],
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
@@ -164,6 +171,13 @@ class WorkoutHistoryPage extends StatelessWidget {
                 'Дистанція: ${session.distanceInKm} км • Тривалість: ${session.durationMinutes} хв',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               ),
+              if (session.avgHeartRate != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Середній пульс: ${session.avgHeartRate} bpm',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
             ] else if (session is StretchingWorkoutSession) ...[
               Text(
                 'Зона м\'язів: ${session.targetMuscleGroup} • Тривалість: ${session.durationMinutes} хв',
@@ -173,6 +187,13 @@ class WorkoutHistoryPage extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, color: AppTheme.primaryColor, size: 20),
+                  tooltip: 'Редагувати тренування',
+                  onPressed: () {
+                    _showEditDialog(context, session);
+                  },
+                ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
                   tooltip: 'Видалити тренування',
@@ -186,6 +207,130 @@ class WorkoutHistoryPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _showEditDialog(BuildContext context, WorkoutSession session) {
+    final titleCtrl = TextEditingController(text: session.title);
+
+    if (session is CardioWorkoutSession) {
+      final distCtrl = TextEditingController(text: session.distanceInKm.toString());
+      final durCtrl = TextEditingController(text: session.durationMinutes.toString());
+      final hrCtrl = TextEditingController(text: session.avgHeartRate?.toString() ?? '');
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Редагувати кардіо'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Назва')),
+                const SizedBox(height: 8),
+                TextField(controller: distCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Дистанція (км)')),
+                const SizedBox(height: 8),
+                TextField(controller: durCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Час (хвилин)')),
+                const SizedBox(height: 8),
+                TextField(controller: hrCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Середній пульс (bpm, опційно)')),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Скасувати')),
+            ElevatedButton(
+              onPressed: () {
+                final updated = session.copyWith(
+                  title: titleCtrl.text.trim(),
+                  distanceInKm: double.tryParse(distCtrl.text) ?? session.distanceInKm,
+                  durationMinutes: int.tryParse(durCtrl.text) ?? session.durationMinutes,
+                  avgHeartRate: int.tryParse(hrCtrl.text),
+                );
+                context.read<WorkoutHistoryCubit>().updateWorkout(updated);
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Кардіо тренування оновлено!'), backgroundColor: AppTheme.primaryColor),
+                );
+              },
+              child: const Text('Зберегти зміни'),
+            ),
+          ],
+        ),
+      );
+    } else if (session is StretchingWorkoutSession) {
+      final targetCtrl = TextEditingController(text: session.targetMuscleGroup);
+      final durCtrl = TextEditingController(text: session.durationMinutes.toString());
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Редагувати розтяжку'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Назва')),
+                const SizedBox(height: 8),
+                TextField(controller: targetCtrl, decoration: const InputDecoration(labelText: 'Цільова група м\'язів')),
+                const SizedBox(height: 8),
+                TextField(controller: durCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Час (хвилин)')),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Скасувати')),
+            ElevatedButton(
+              onPressed: () {
+                final updated = session.copyWith(
+                  title: titleCtrl.text.trim(),
+                  targetMuscleGroup: targetCtrl.text.trim(),
+                  durationMinutes: int.tryParse(durCtrl.text) ?? session.durationMinutes,
+                );
+                context.read<WorkoutHistoryCubit>().updateWorkout(updated);
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Розтяжку оновлено!'), backgroundColor: AppTheme.primaryColor),
+                );
+              },
+              child: const Text('Зберегти зміни'),
+            ),
+          ],
+        ),
+      );
+    } else if (session is StrengthWorkoutSession) {
+      final notesCtrl = TextEditingController(text: session.notes ?? '');
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Редагувати силове тренування'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Назва')),
+              const SizedBox(height: 8),
+              TextField(controller: notesCtrl, decoration: const InputDecoration(labelText: 'Нотатки')),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Скасувати')),
+            ElevatedButton(
+              onPressed: () {
+                final updated = session.copyWith(
+                  title: titleCtrl.text.trim(),
+                  notes: notesCtrl.text.trim(),
+                );
+                context.read<WorkoutHistoryCubit>().updateWorkout(updated);
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Силове тренування оновлено!'), backgroundColor: AppTheme.primaryColor),
+                );
+              },
+              child: const Text('Зберегти зміни'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _confirmDelete(BuildContext context, String id) {
